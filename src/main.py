@@ -160,23 +160,72 @@ def play_perfect():
         player = 'O' if player == 'X' else 'X'
     return result(board)
 
+def show(board):
+    sym = {1: 'X', -1: 'O'}
+    for r in range (3):
+        print(" | ".join(sym.get(board[r][c], str((r * 3) + c + 1)) for c in range (3)))
+        if r < 2:
+            print("--+---+--")
+
+def get_move(board):
+    while True:
+        s = input("Pick a cell (1-9): ").strip()
+        if not s.isdigit() or not 1 <= int(s) <= 9:
+            print("Invalid input. Enter a key 1 to 9.")
+            continue
+        move = divmod(int(s) - 1, 3)
+        if move not in valid_moves(board):
+            print("Invalid input. Choose an unoccupied cell.")
+            continue
+        return move
+
+def play_user():
+    choice = ""
+    while choice not in ("X", "O"):
+        choice = input("Play as 'X' or 'O'? ('X' starts first): ").strip().upper()
+    user = choice
+    agent = 'O' if user == 'X' else 'X'
+    board = [[0]*3 for _ in range (3)]
+    player = 'X'
+    while not terminal(board):
+        show(board)
+        if player == user:
+            move = get_move(board)
+        else:
+            global nodes
+            nodes = 0
+            t = time.perf_counter()
+            move = agent_move(board, agent)
+            ms = (time.perf_counter() - t) * 1000
+            print(f"Agent plays {move[0]*3 + move[1] + 1} ({nodes} nodes, {ms:.1f} ms)")
+        board = apply(board, move, player)
+        player = 'O' if player == 'X' else 'X'
+    show(board)
+    r = result(board)
+    print("Draw." if r == 0 else f"{'X' if r == 1 else 'O'} is the winner!")
+
 # run if directly called
 if __name__ == "__main__":
-    results = {1: 0, 0: 0, -1: 0}
-    for _ in range (200):
-        results[play_random()] += 1
-    print("Wins:", results[1], "Draws:", results[0], "Losses:", results[-1])
+    mode = input("1 = play vs agent, 2 run test: ").strip()
+    if mode == "1":
+        play_user()
+    else:
+        random.seed(42)
+        results = {1: 0, 0: 0, -1: 0}
 
-    cases = {
-        "Empty": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
-        "O center": [[1, 0, 0], [0, -1, 0], [0, 0, 0]],
-        "Win available": [[1, 1, 0], [-1, -1, 0], [0, 0, 0]],
-        "Must block": [[-1, -1, 0], [0, 1, 0], [0, 0, 1]],
-        "Close to full": [[1, -1, 1], [-1, 1, -1], [0, 0, 0]],
-    }
+        for _ in range (200):
+            results[play_random()] += 1
+        print("Wins:", results[1], "Draws:", results[0], "Losses:", results[-1])
+        print("Perfect vs perfect: ", play_perfect(), "(0) = draw")
 
-    for name, b in cases.items():
-        assert valid_board(b), f"Invalid board {name}"
-        run_case(name, b)
+        cases = {
+            "Empty": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+            "O center": [[1, 0, 0], [0, -1, 0], [0, 0, 0]],
+            "Win available": [[1, 1, 0], [-1, -1, 0], [0, 0, 0]],
+            "Must block": [[-1, -1, 0], [0, 1, 0], [0, 0, 1]],
+            "Close to full": [[1, -1, 1], [-1, 1, -1], [0, 0, 0]],
+        }
 
-print(play_perfect())
+        for name, b in cases.items():
+            assert valid_board(b), f"Invalid board {name}"
+            run_case(name, b)
