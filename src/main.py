@@ -9,27 +9,29 @@ patterns = [
     [(0, 0), (1, 0), (2, 0)], [(0, 1), (1, 1), (2, 1)], [(0, 2), (1, 2), (2, 2)], # vertical
     [(0, 0), (1, 1), (2, 2)], [(0, 2), (1, 1), (2, 0)] # diagonal
 ]
-board_order = [(r, c) for r in range (3) for c in range (3)]
-board_ordering = {
+
+# list of board ordering patterns
+board_orders = {
     "Default": [(r, c) for r in range (3) for c in range (3)],
-    "Center-Corner-Edge": [(1, 1), (0, 0), (0, 2), (2, 0), (2, 2), (0, 1), (1, 0), (1, 2), (2, 1)],
-    "Edge-Corner-Center": [(0, 1), (1, 0), (1, 2), (2, 1), (0, 0), (0, 2), (2, 0), (2, 2), (1, 1)],
+    "CenterCornerEdge": [(1, 1), (0, 0), (0, 2), (2, 0), (2, 2), (0, 1), (1, 0), (1, 2), (2, 1)],
+    "EdgeCornerCenter": [(0, 1), (1, 0), (1, 2), (2, 1), (0, 0), (0, 2), (2, 0), (2, 2), (1, 1)],
 }
+current_order = board_orders["Default"]
 
-# moves can be made only on EMPTY tiles
+# check board for remaining EMPTY cells
 def valid_moves(board):
-    return [m for m in board_order if board[m[0]][m[1]] == 0]
+    return [m for m in current_order if board[m[0]][m[1]] == 0]
 
-# board that has valid cells
+# check board for valid cell count
 def valid_board(board):
     flat = [c for row in board for c in row]
     return flat.count(1) == flat.count(-1)
 
-# check for terminal state
+# check board for terminal state
 def terminal(board):
     return result(board) != 0 or not valid_moves(board)
 
-# apply move made by the respective player
+# apply move made by player
 def apply(board, move, player):
     new_board = [row[:] for row in board]
     new_board[move[0]][move[1]] = 1 if player == 'X' else -1
@@ -53,12 +55,13 @@ def best_move(board):
 def maximise(board, alpha, beta):
     global nodes
     nodes += 1
-
-    if terminal(board):
-        return result(board)
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r
 
     v = -math.inf
-    for move in valid_moves(board):
+    for move in moves:
         v = max(v, minimise(apply(board, move, 'X'), alpha, beta))
         if v >= beta:
             return v
@@ -69,12 +72,13 @@ def maximise(board, alpha, beta):
 def minimise(board, alpha, beta):
     global nodes
     nodes += 1
-
-    if terminal(board):
-        return result(board)
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r
 
     v = math.inf
-    for move in valid_moves(board):
+    for move in moves:
         v = min(v, maximise(apply(board, move, 'O'), alpha, beta))
         if v <= alpha:
             return v
@@ -97,18 +101,20 @@ def minimax(board):
 def max_plain(board):
     global nodes
     nodes += 1
-
-    if terminal(board):
-        return result(board)
-    return max(min_plain(apply(board, m, 'X')) for m in valid_moves(board))
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r
+    return max(min_plain(apply(board, m, 'X')) for m in moves)
 
 def min_plain(board):
     global nodes
     nodes += 1
-
-    if terminal(board):
-        return result(board)
-    return min(max_plain(apply(board, m, 'O')) for m in valid_moves(board))
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r
+    return min(max_plain(apply(board, m, 'O')) for m in moves)
 
 # determine game result upon reaching terminal state
 def result(board):
@@ -121,7 +127,52 @@ def result(board):
             return -1 # O wins
     return 0 # draw
 
-# run case
+def best_move_d(board):
+    best_value = -math.inf
+    best = None
+    alpha, beta = -math.inf, math.inf
+
+    for move in valid_moves(board):
+        score = minimise_d(apply(board, move, 'X'), alpha, beta, 1)
+        if score > best_value:
+            best_value = score
+            best = move
+        alpha = max(alpha, best_value)
+    return best_value, best
+
+def maximise_d(board, alpha, beta, depth):
+    global nodes
+    nodes += 1
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r * (10 - depth)
+
+    v = -math.inf
+    for move in moves:
+        v = max(v, minimise_d(apply(board, move, 'X'), alpha, beta, depth + 1))
+        if v >= beta:
+            return v
+        alpha = max(alpha, v)
+    return v
+
+def minimise_d(board, alpha, beta, depth):
+    global nodes
+    nodes += 1
+    r = result(board)
+    moves = valid_moves(board)
+    if r or not moves:
+        return r * (10 - depth)
+
+    v = math.inf
+    for move in moves:
+        v = min(v, maximise_d(apply(board, move, 'O'), alpha, beta, depth + 1))
+        if v <= alpha:
+            return v
+        beta = min(beta, v)
+    return v
+
+# run algorithm optimization test cases
 def run_case(name, board):
     global nodes
 
@@ -141,7 +192,7 @@ def run_case(name, board):
     reduction = (mm_nodes - ab_nodes) / mm_nodes * 100
     print(f"{name:<22} | MM {mm_nodes:>7} {mm_time:>8.1f}ms | AB {ab_nodes:>6} {ab_time:>7.1f}ms | val {ab_val:>2} | move {ab_move} | -{reduction:.1f}%")
 
-# randomize
+# play against randomized move
 def play_random():
     board = [[0]*3 for _ in range (3)]
     while not terminal(board):
@@ -166,6 +217,7 @@ def play_perfect():
         player = 'O' if player == 'X' else 'X'
     return result(board)
 
+# refresh & print the board
 def show(board):
     sym = {1: 'X', -1: 'O'}
     for r in range (3):
@@ -173,10 +225,11 @@ def show(board):
         if r < 2:
             print("--+---+--")
 
+# receive user input to make moves
 def get_move(board):
     while True:
         s = input("Pick a cell (1-9): ").strip()
-        if not s.isdigit() or not 1 <= int(s) <= 9:
+        if s not in list("123456789"):
             print("Invalid input. Enter a key 1 to 9.")
             continue
         move = divmod(int(s) - 1, 3)
@@ -185,15 +238,22 @@ def get_move(board):
             continue
         return move
 
+# play tic-tac-toe game
 def play_user():
+    global nodes
+
+    # prompt user to choose to play as either player X/O
     choice = ""
     while choice not in ("X", "O"):
         choice = input("Play as 'X' or 'O'? ('X' starts first): ").strip().upper()
+
     user = choice
     agent = 'O' if user == 'X' else 'X'
     board = [[0]*3 for _ in range (3)]
     player = 'X'
+
     while not terminal(board):
+        # refresh board after a new move is made
         show(board)
         if player == user:
             move = get_move(board)
@@ -206,35 +266,43 @@ def play_user():
             print(f"Agent plays {move[0]*3 + move[1] + 1} ({nodes} nodes, {ms:.1f} ms)")
         board = apply(board, move, player)
         player = 'O' if player == 'X' else 'X'
+
+    # announce the game result when board reaches terminal state
     show(board)
     r = result(board)
     print("Draw." if r == 0 else f"{'X' if r == 1 else 'O'} is the winner!")
 
+# test results of board ordering
 def order_test():
-    global board_order, nodes
+    global current_order, nodes
     print(f"{'Ordering':<20} | {'AB nodes':>8} | {'Time ms':>8} | val | move")
-    for name, order in board_ordering.items():
-        board_order = order
+
+    for name, order in board_orders.items():
+        current_order = order
         nodes = 0
         t = time.perf_counter()
         val, move = best_move([[0]*3 for _ in range (3)])
         ms = (time.perf_counter() - t) * 1000
         print(f"{name:<20} | {nodes:>8} | {ms:>8.1f} | {val:>3} | {move}")
-    board_order = board_ordering["Default"]
+    current_order = board_orders["Default"]
 
-# run if directly called
+# initial function
 if __name__ == "__main__":
     mode = input("1 = play vs agent, 2 run test: ").strip()
+
     if mode == "1":
+        # play game
         play_user()
     else:
+        # record algorithm metrics
         random.seed(42)
         results = {1: 0, 0: 0, -1: 0}
 
+        # results table
         for _ in range (200):
             results[play_random()] += 1
         print("Wins:", results[1], "Draws:", results[0], "Losses:", results[-1])
-        print("Perfect vs perfect: ", play_perfect(), "(expect 0) = draw")
+        print("Perfect vs perfect: ", play_perfect(), "(expect 0 = draw)")
 
         cases = {
             "Empty": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
@@ -243,10 +311,14 @@ if __name__ == "__main__":
             "Must block": [[-1, -1, 0], [0, 1, 0], [0, 0, 1]],
             "Close to full": [[1, -1, 1], [-1, 1, -1], [0, 0, 0]],
         }
-
         for name, b in cases.items():
             assert valid_board(b), f"Invalid board {name}"
             run_case(name, b)
 
-        order_test()
+        # compare plain and depth-adjusted move speed
+        move_speed = [ [1, -1, 0], [0, 1, 0], [-1, 0, 0] ]
+        nodes  = 0; print("Plain: ", best_move(move_speed), nodes)
+        nodes = 0; print("Depth: ", best_move_d(move_speed), nodes)
 
+        # show order table
+        order_test()
